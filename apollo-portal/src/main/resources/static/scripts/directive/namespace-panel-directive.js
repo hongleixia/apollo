@@ -21,7 +21,9 @@ function directive($window, toastr, AppUtil, EventManager, PermissionService, Na
             showNoModifyPermissionDialog: '=',
             preCreateBranch: '=',
             preDeleteBranch: '=',
-            showMergeAndPublishGrayTips: '='
+            showMergeAndPublishGrayTips: '=',
+            showBody: "=?",
+            lazyLoad: "=?"
         },
         link: function (scope) {
 
@@ -42,6 +44,7 @@ function directive($window, toastr, AppUtil, EventManager, PermissionService, Na
 
             var operate_branch_storage_key = 'OperateBranch';
 
+            scope.refreshNamespace = refreshNamespace;
             scope.switchView = switchView;
             scope.toggleItemSearchInput = toggleItemSearchInput;
             scope.searchItems = searchItems;
@@ -74,23 +77,42 @@ function directive($window, toastr, AppUtil, EventManager, PermissionService, Na
                                          subscriberId, scope.namespace.baseInfo.namespaceName);
             });
 
-            init();
+            preInit(scope.namespace);
+
+            if (!scope.lazyLoad || scope.namespace.initialized) {
+                init();
+            }
+
+            function preInit(namespace) {
+                scope.showNamespaceBody = false;
+                namespace.isLinkedNamespace =
+                    namespace.isPublic ? namespace.parentAppId != namespace.baseInfo.appId : false;
+                //namespace view name hide suffix
+                namespace.viewName = namespace.baseInfo.namespaceName.replace(".xml", "").replace(
+                            ".properties", "").replace(".json", "").replace(".yml", "")
+                            .replace(".yaml", "");
+            }
 
             function init() {
                 initNamespace(scope.namespace);
                 initOther();
+                scope.namespace.initialized = true;
+            }
+
+            function refreshNamespace() {
+                EventManager.emit(EventManager.EventType.REFRESH_NAMESPACE,
+                                  {namespace: scope.namespace});
             }
 
             function initNamespace(namespace, viewType) {
                 namespace.hasBranch = false;
                 namespace.isBranch = false;
-                namespace.isLinkedNamespace =
-                    namespace.isPublic ? namespace.parentAppId != namespace.baseInfo.appId : false;
                 namespace.displayControl = {
                     currentOperateBranch: 'master',
                     showSearchInput: false,
-                    show: true
+                    show: scope.showBody
                 };
+                scope.showNamespaceBody = namespace.showNamespaceBody ? true : scope.showBody;
                 namespace.viewItems = namespace.items;
                 namespace.isPropertiesFormat = namespace.format == 'properties';
                 namespace.isTextEditing = false;
@@ -217,10 +239,26 @@ function directive($window, toastr, AppUtil, EventManager, PermissionService, Na
                         scope.appId,
                         namespace.baseInfo.namespaceName)
                         .then(function (result) {
+                            if (!result.hasPermission) {
+                                PermissionService.has_modify_namespace_env_permission(
+                                    scope.appId,
+                                    scope.env,
+                                    namespace.baseInfo.namespaceName
+                                    )
+                                    .then(function (result) {
+                                        //branch has same permission
+                                        namespace.hasModifyPermission = result.hasPermission;
+                                        if (namespace.branch) {
+                                            namespace.branch.hasModifyPermission = result.hasPermission;
+                                        }
+                                    });
+                            }
+                            else {
                             //branch has same permission
                             namespace.hasModifyPermission = result.hasPermission;
-                            if (namespace.branch) {
-                                namespace.branch.hasModifyPermission = result.hasPermission;
+                                if (namespace.branch) {
+                                    namespace.branch.hasModifyPermission = result.hasPermission;
+                                }
                             }
                         });
 
@@ -228,10 +266,26 @@ function directive($window, toastr, AppUtil, EventManager, PermissionService, Na
                         scope.appId,
                         namespace.baseInfo.namespaceName)
                         .then(function (result) {
-                            //branch has same permission
-                            namespace.hasReleasePermission = result.hasPermission;
-                            if (namespace.branch) {
-                                namespace.branch.hasReleasePermission = result.hasPermission;
+                            if (!result.hasPermission) {
+                                PermissionService.has_release_namespace_env_permission(
+                                    scope.appId,
+                                    scope.env,
+                                    namespace.baseInfo.namespaceName
+                                    )
+                                    .then(function (result) {
+                                        //branch has same permission
+                                        namespace.hasReleasePermission = result.hasPermission;
+                                        if (namespace.branch) {
+                                            namespace.branch.hasReleasePermission = result.hasPermission;
+                                        }
+                                    });
+                            }
+                            else {
+                                //branch has same permission
+                                namespace.hasReleasePermission = result.hasPermission;
+                                if (namespace.branch) {
+                                    namespace.branch.hasReleasePermission = result.hasPermission;
+                                }
                             }
                         });
                 }
@@ -275,12 +329,6 @@ function directive($window, toastr, AppUtil, EventManager, PermissionService, Na
                 }
 
                 function initNamespaceViewName(namespace) {
-                    //namespace view name hide suffix
-                    namespace.viewName =
-                        namespace.baseInfo.namespaceName.replace(".xml", "").replace(
-                            ".properties", "").replace(".json", "").replace(".yml", "")
-                            .replace(".yaml", "");
-
                     if (!viewType) {
                         if (namespace.isPropertiesFormat) {
                             switchView(namespace, namespace_view_type.TABLE);
@@ -316,7 +364,7 @@ function directive($window, toastr, AppUtil, EventManager, PermissionService, Na
 
                     localStorage.setItem(operate_branch_storage_key, JSON.stringify(operateBranchStorage));
 
-                    switchBranch(operateBranchStorage[namespaceId]);
+                    switchBranch(operateBranchStorage[namespaceId], false);
 
                 }
 
@@ -346,13 +394,14 @@ function directive($window, toastr, AppUtil, EventManager, PermissionService, Na
                     });
             }
 
-            function switchBranch(branchName) {
+            function switchBranch(branchName, forceShowBody) {
                 if (branchName != 'master') {
-                    scope.namespace.branch.displayControl.show = true;
                     initRules(scope.namespace.branch);
-                } else {
-                    scope.namespace.displayControl.show = true;
                 }
+                if (forceShowBody) {
+                    scope.showNamespaceBody = true;
+                }
+
                 scope.namespace.displayControl.currentOperateBranch = branchName;
 
                 //save to local storage

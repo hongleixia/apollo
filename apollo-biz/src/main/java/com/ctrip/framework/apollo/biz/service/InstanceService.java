@@ -1,14 +1,11 @@
 package com.ctrip.framework.apollo.biz.service;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-
 import com.ctrip.framework.apollo.biz.entity.Instance;
 import com.ctrip.framework.apollo.biz.entity.InstanceConfig;
 import com.ctrip.framework.apollo.biz.repository.InstanceConfigRepository;
 import com.ctrip.framework.apollo.biz.repository.InstanceRepository;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -29,11 +26,15 @@ import java.util.stream.Collectors;
  */
 @Service
 public class InstanceService {
-  @Autowired
-  private InstanceRepository instanceRepository;
+  private final InstanceRepository instanceRepository;
+  private final InstanceConfigRepository instanceConfigRepository;
 
-  @Autowired
-  private InstanceConfigRepository instanceConfigRepository;
+  public InstanceService(
+      final InstanceRepository instanceRepository,
+      final InstanceConfigRepository instanceConfigRepository) {
+    this.instanceRepository = instanceRepository;
+    this.instanceConfigRepository = instanceConfigRepository;
+  }
 
   public Instance findInstance(String appId, String clusterName, String dataCenter, String ip) {
     return instanceRepository.findByAppIdAndClusterNameAndDataCenterAndIp(appId, clusterName,
@@ -41,7 +42,7 @@ public class InstanceService {
   }
 
   public List<Instance> findInstancesByIds(Set<Long> instanceIds) {
-    Iterable<Instance> instances = instanceRepository.findAll(instanceIds);
+    Iterable<Instance> instances = instanceRepository.findAllById(instanceIds);
     if (instances == null) {
       return Collections.emptyList();
     }
@@ -159,7 +160,7 @@ public class InstanceService {
 
   @Transactional
   public InstanceConfig updateInstanceConfig(InstanceConfig instanceConfig) {
-    InstanceConfig existedInstanceConfig = instanceConfigRepository.findOne(instanceConfig.getId());
+    InstanceConfig existedInstanceConfig = instanceConfigRepository.findById(instanceConfig.getId()).orElse(null);
     Preconditions.checkArgument(existedInstanceConfig != null, String.format(
         "Instance config %d doesn't exist", instanceConfig.getId()));
 

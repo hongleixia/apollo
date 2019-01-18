@@ -6,7 +6,6 @@ import com.ctrip.framework.apollo.common.dto.AppDTO;
 import com.ctrip.framework.apollo.common.entity.App;
 import com.ctrip.framework.apollo.common.exception.NotFoundException;
 import com.ctrip.framework.apollo.common.exception.ServiceException;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,7 +14,6 @@ import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,9 +34,7 @@ public class ControllerExceptionTest {
 
   @Before
   public void setUp() {
-    appController = new AppController();
-    ReflectionTestUtils.setField(appController, "appService", appService);
-    ReflectionTestUtils.setField(appController, "adminService", adminService);
+    appController = new AppController(appService, adminService);
   }
 
   @Test(expected = NotFoundException.class)
@@ -56,7 +52,7 @@ public class ControllerExceptionTest {
   @Test
   public void testFindEmpty() {
     when(appService.findAll(any(Pageable.class))).thenReturn(new ArrayList<App>());
-    Pageable pageable = new PageRequest(0, 10);
+    Pageable pageable = PageRequest.of(0, 10);
     List<AppDTO> appDTOs = appController.find(null, pageable);
     Assert.assertNotNull(appDTOs);
     Assert.assertEquals(0, appDTOs.size());
@@ -68,7 +64,7 @@ public class ControllerExceptionTest {
 
   @Test
   public void testFindByName() {
-    Pageable pageable = new PageRequest(0, 10);
+    Pageable pageable = PageRequest.of(0, 10);
     List<AppDTO> appDTOs = appController.find("unexist", pageable);
     Assert.assertNotNull(appDTOs);
     Assert.assertEquals(0, appDTOs.size());
